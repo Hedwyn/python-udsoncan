@@ -12,30 +12,42 @@ import selectors
 
 try:
     import can  # type:ignore
+
     _import_can_err = None
 except Exception as e:
     _import_can_err = e
 
 try:
-    import isotp    # type:ignore
+    import isotp  # type:ignore
+
     _import_isotp_err = None
 except Exception as e:
     _import_isotp_err = e
 
 try:
-    from udsoncan.j2534 import J2534, TxStatusFlag, Protocol_ID, Error_ID, Ioctl_Flags, Ioctl_ID, SCONFIG_LIST
+    from udsoncan.j2534 import (
+        J2534,
+        TxStatusFlag,
+        Protocol_ID,
+        Error_ID,
+        Ioctl_Flags,
+        Ioctl_ID,
+        SCONFIG_LIST,
+    )
+
     _import_j2534_err = None
 except Exception as e:
     _import_j2534_err = e
 
 try:
     from aioisotp.sync import SyncISOTPNetwork, SyncConnection  # type:ignore
+
     _import_aioisotp_err = None
 except Exception as e:
     _import_aioisotp_err = e
 
-from udsoncan.Request import Request
-from udsoncan.Response import Response
+from udsoncan.request import Request
+from udsoncan.response import Response
 from udsoncan.exceptions import TimeoutException
 
 
@@ -43,19 +55,20 @@ from typing import Optional, Tuple, cast
 
 
 class BaseConnection(ABC):
-
     name: str
     logger: logging.Logger
 
     def __init__(self, name: Optional[str] = None):
         if name is None:
-            self.name = 'Connection'
+            self.name = "Connection"
         else:
-            self.name = 'Connection[%s]' % (name)
+            self.name = "Connection[%s]" % (name)
 
         self.logger = logging.getLogger(self.name)
 
-    def send(self, data: Union[bytes, Request, Response], timeout: Optional[float] = None) -> None:
+    def send(
+        self, data: Union[bytes, Request, Response], timeout: Optional[float] = None
+    ) -> None:
         """Sends data to the underlying transport protocol
 
         :param data: The data or object to send. If a Request or Response is given, the value returned by get_payload() will be sent.
@@ -71,15 +84,20 @@ class BaseConnection(ABC):
         else:
             payload = data
 
-        self.logger.debug('Sending %d bytes : [%s]' % (len(payload), binascii.hexlify(payload).decode('ascii')))
+        self.logger.debug(
+            "Sending %d bytes : [%s]"
+            % (len(payload), binascii.hexlify(payload).decode("ascii"))
+        )
 
         # backward compatibility
-        if 'timeout' in self.specific_send.__code__.co_varnames:
+        if "timeout" in self.specific_send.__code__.co_varnames:
             self.specific_send(payload, timeout=timeout)
         else:
             self.specific_send(payload)
 
-    def wait_frame(self, timeout: Optional[float] = None, exception: bool = False) -> Optional[bytes]:
+    def wait_frame(
+        self, timeout: Optional[float] = None, exception: bool = False
+    ) -> Optional[bytes]:
         """Waits for the reception of a frame of data from the underlying transport protocol
 
         :param timeout: The maximum amount of time to wait before giving up in seconds
@@ -98,7 +116,9 @@ class BaseConnection(ABC):
         try:
             frame = self.specific_wait_frame(timeout=timeout)
         except Exception as e:
-            self.logger.debug('No data received: [%s] - %s ' % (e.__class__.__name__, str(e)))
+            self.logger.debug(
+                "No data received: [%s] - %s " % (e.__class__.__name__, str(e))
+            )
 
             if exception == True:
                 raise
@@ -106,7 +126,10 @@ class BaseConnection(ABC):
                 frame = None
 
         if frame is not None:
-            self.logger.debug('Received %d bytes : [%s]' % (len(frame), binascii.hexlify(frame).decode('ascii')))
+            self.logger.debug(
+                "Received %d bytes : [%s]"
+                % (len(frame), binascii.hexlify(frame).decode("ascii"))
+            )
         return frame
 
     def __enter__(self):
@@ -125,7 +148,7 @@ class BaseConnection(ABC):
 
     @abstractmethod
     def specific_wait_frame(self, timeout: Optional[float] = None) -> Optional[bytes]:
-        """The implementation of the ``wait_frame`` method. 
+        """The implementation of the ``wait_frame`` method.
 
         :param timeout: The maximum amount of time to wait before giving up
         :type timeout: int
@@ -137,7 +160,7 @@ class BaseConnection(ABC):
 
     @abstractmethod
     def open(self) -> "BaseConnection":
-        """ Set up the connection object. 
+        """Set up the connection object.
 
         :returns: None
         """
@@ -145,7 +168,7 @@ class BaseConnection(ABC):
 
     @abstractmethod
     def close(self) -> None:
-        """ Close the connection object
+        """Close the connection object
 
         :returns: None
         """
@@ -153,7 +176,7 @@ class BaseConnection(ABC):
 
     @abstractmethod
     def empty_rxqueue(self) -> None:
-        """ Empty all unread data in the reception buffer.
+        """Empty all unread data in the reception buffer.
 
         :returns: None
         """
@@ -161,7 +184,7 @@ class BaseConnection(ABC):
 
     @abstractmethod
     def is_open(self) -> bool:
-        """ Tells if the connection is open.
+        """Tells if the connection is open.
 
         :returns: bool
         """
@@ -191,7 +214,9 @@ class SocketConnection(BaseConnection):
     sock: socket.socket
     bufsize: int
 
-    def __init__(self, sock: socket.socket, bufsize: int = 4095, name: Optional[str] = None):
+    def __init__(
+        self, sock: socket.socket, bufsize: int = 4095, name: Optional[str] = None
+    ):
         BaseConnection.__init__(self, name)
 
         self.rxqueue = queue.Queue()
@@ -206,7 +231,7 @@ class SocketConnection(BaseConnection):
         self.rxthread = threading.Thread(target=self.rxthread_task, daemon=True)
         self.rxthread.start()
         self.opened = True
-        self.logger.info('Connection opened')
+        self.logger.info("Connection opened")
         return self
 
     def __enter__(self):
@@ -236,7 +261,7 @@ class SocketConnection(BaseConnection):
         if self.rxthread is not None:
             self.rxthread.join()
         self.opened = False
-        self.logger.info('Connection closed')
+        self.logger.info("Connection closed")
 
     def specific_send(self, payload: bytes, timeout: Optional[float] = None) -> None:
         # timeout not used for generic sockets
@@ -254,7 +279,9 @@ class SocketConnection(BaseConnection):
             timedout = True
 
         if timedout:
-            raise TimeoutException("Did not received frame in time (timeout=%s sec)" % timeout)
+            raise TimeoutException(
+                "Did not received frame in time (timeout=%s sec)" % timeout
+            )
 
         return frame
 
@@ -271,7 +298,7 @@ class IsoTPSocketConnection(BaseConnection):
     :param interface: The can interface to use (example: ``can0``)
     :type interface: string
     :param address: The address used to bind the the socket. Before 1.21, txid/rxid were needed here, this has changed with v1.21
-    :type address: ``isotp.Address`` or ``isotp.AsymmetricAddress`` 
+    :type address: ``isotp.Address`` or ``isotp.AsymmetricAddress``
     :param name: This name is included in the logger name so that its output can be redirected. The logger name will be ``Connection[<name>]``
     :type name: string
     :param tpsock: An optional ISO-TP socket to use instead of creating one.
@@ -285,14 +312,14 @@ class IsoTPSocketConnection(BaseConnection):
     exit_requested: bool
     opened: bool
 
-    def __init__(self,
-                 interface: str,
-                 address: Union["isotp.Address", "isotp.AsymmetricAddress"],
-                 name: Optional[str] = None,
-                 tpsock: Optional["isotp.socket"] = None,
-                 **kwargs
-                 ):
-
+    def __init__(
+        self,
+        interface: str,
+        address: Union["isotp.Address", "isotp.AsymmetricAddress"],
+        name: Optional[str] = None,
+        tpsock: Optional["isotp.socket"] = None,
+        **kwargs,
+    ):
         BaseConnection.__init__(self, name)
 
         self.interface = interface
@@ -302,14 +329,16 @@ class IsoTPSocketConnection(BaseConnection):
         self.opened = False
 
         # Lives with the past.
-        if 'txid' in kwargs or 'rxid' in kwargs:
+        if "txid" in kwargs or "rxid" in kwargs:
             raise RuntimeError(
-                "Provide an isotp.Address to the %s. The interface has changed in a non-backward compatible way and this is now required." % self.__class__.__name__)
+                "Provide an isotp.Address to the %s. The interface has changed in a non-backward compatible way and this is now required."
+                % self.__class__.__name__
+            )
 
         if tpsock is None:
-            if 'isotp' not in sys.modules:
+            if "isotp" not in sys.modules:
                 if _import_isotp_err is None:
-                    raise ImportError('isotp module is not loaded')
+                    raise ImportError("isotp module is not loaded")
                 else:
                     raise _import_isotp_err
             self.tpsock = isotp.socket(timeout=0.1)
@@ -322,7 +351,7 @@ class IsoTPSocketConnection(BaseConnection):
         self.rxthread = threading.Thread(target=self.rxthread_task, daemon=True)
         self.rxthread.start()
         self.opened = True
-        self.logger.info('Connection opened')
+        self.logger.info("Connection opened")
         return self
 
     def __enter__(self) -> "IsoTPSocketConnection":
@@ -353,7 +382,7 @@ class IsoTPSocketConnection(BaseConnection):
             self.rxthread.join()
         self.tpsock.close()
         self.opened = False
-        self.logger.info('Connection closed')
+        self.logger.info("Connection closed")
 
     def specific_send(self, payload: bytes, timeout: Optional[float] = None) -> None:
         self.tpsock.send(payload)
@@ -371,7 +400,9 @@ class IsoTPSocketConnection(BaseConnection):
             timedout = True
 
         if timedout:
-            raise TimeoutException("Did not received ISOTP frame in time (timeout=%s sec)" % timeout)
+            raise TimeoutException(
+                "Did not received ISOTP frame in time (timeout=%s sec)" % timeout
+            )
 
         return frame
 
@@ -382,8 +413,9 @@ class IsoTPSocketConnection(BaseConnection):
 
 class IsoTPConnection(IsoTPSocketConnection):
     """
-    Same as :class:`IsoTPSocketConnection <udsoncan.connections.IsoTPSocketConnection.Session>`. Exists only for backward compatibility. 
+    Same as :class:`IsoTPSocketConnection <udsoncan.connections.IsoTPSocketConnection.Session>`. Exists only for backward compatibility.
     """
+
     pass
 
 
@@ -408,14 +440,18 @@ class QueueConnection(BaseConnection):
     def __init__(self, name: Optional[str] = None, mtu: int = 4095):
         BaseConnection.__init__(self, name)
 
-        self.fromuserqueue = queue.Queue()  # Client reads from this queue. Other end is simulated
-        self.touserqueue = queue.Queue()  # Client writes to this queue. Other end is simulated
+        self.fromuserqueue = (
+            queue.Queue()
+        )  # Client reads from this queue. Other end is simulated
+        self.touserqueue = (
+            queue.Queue()
+        )  # Client writes to this queue. Other end is simulated
         self.opened = False
         self.mtu = mtu
 
     def open(self) -> "QueueConnection":
         self.opened = True
-        self.logger.info('Connection opened')
+        self.logger.info("Connection opened")
         return self
 
     def __enter__(self) -> "QueueConnection":
@@ -431,13 +467,15 @@ class QueueConnection(BaseConnection):
         self.empty_rxqueue()
         self.empty_txqueue()
         self.opened = False
-        self.logger.info('Connection closed')
+        self.logger.info("Connection closed")
 
     def specific_send(self, payload: bytes, timeout: Optional[float] = None) -> None:
         if self.mtu is not None:
             if len(payload) > self.mtu:
-                self.logger.warning("Truncating payload to be set to a length of %d" % (self.mtu))
-                payload = payload[0:self.mtu]
+                self.logger.warning(
+                    "Truncating payload to be set to a length of %d" % (self.mtu)
+                )
+                payload = payload[0 : self.mtu]
 
         self.touserqueue.put(payload, block=True, timeout=timeout)
 
@@ -453,12 +491,17 @@ class QueueConnection(BaseConnection):
             timedout = True
 
         if timedout:
-            raise TimeoutException("Did not receive frame from user queue in time (timeout=%s sec)" % timeout)
+            raise TimeoutException(
+                "Did not receive frame from user queue in time (timeout=%s sec)"
+                % timeout
+            )
 
         if self.mtu is not None:
             if frame is not None and len(frame) > self.mtu:
-                self.logger.warning("Truncating received payload to a length of %d" % (self.mtu))
-                frame = frame[0:self.mtu]
+                self.logger.warning(
+                    "Truncating received payload to a length of %d" % (self.mtu)
+                )
+                frame = frame[0 : self.mtu]
 
         return frame
 
@@ -490,23 +533,29 @@ class PythonIsoTpConnection(BaseConnection):
 
     subconn: Union["PythonIsoTpV1Connection", "PythonIsoTpV2Connection"]
 
-    def __init__(self,
-                 isotp_layer: Union["isotp.TransportLayerLogic", "isotp.TransportLayer"],
-                 name: Optional[str] = None
-                 ):
+    def __init__(
+        self,
+        isotp_layer: Union["isotp.TransportLayerLogic", "isotp.TransportLayer"],
+        name: Optional[str] = None,
+    ):
         BaseConnection.__init__(self, name)
         import isotp
-        if hasattr(isotp, '_major_version_'):    # isotp v2.x
+
+        if hasattr(isotp, "_major_version_"):  # isotp v2.x
             if isotp._major_version_ == 2:
-                if isinstance(isotp_layer, isotp.TransportLayer):   # This one has its own thread
+                if isinstance(
+                    isotp_layer, isotp.TransportLayer
+                ):  # This one has its own thread
                     self.subconn = PythonIsoTpV2Connection(isotp_layer, name)
-                elif isinstance(isotp_layer, isotp.TransportLayerLogic):    # Need to create a thread for this one
+                elif isinstance(
+                    isotp_layer, isotp.TransportLayerLogic
+                ):  # Need to create a thread for this one
                     self.subconn = PythonIsoTpV1Connection(isotp_layer, name)
                 else:
                     raise ValueError("Invalid isotp layer object")
             else:
                 raise NotImplementedError("Unsupported isotp version")
-        else:   # isotp v1.x
+        else:  # isotp v1.x
             self.subconn = PythonIsoTpV1Connection(isotp_layer, name)
 
     def open(self) -> "PythonIsoTpConnection":
@@ -540,7 +589,6 @@ class PythonIsoTpConnection(BaseConnection):
 
 
 class PythonIsoTpV2Connection(BaseConnection):
-
     isotp_layer: "isotp.TransportLayer"
     opened: bool
 
@@ -549,12 +597,14 @@ class PythonIsoTpV2Connection(BaseConnection):
         self.opened = False
         self.isotp_layer = isotp_layer
 
-        assert isinstance(self.isotp_layer, isotp.TransportLayer), 'isotp_layer must be a valid isotp.TransportLayer '
+        assert isinstance(
+            self.isotp_layer, isotp.TransportLayer
+        ), "isotp_layer must be a valid isotp.TransportLayer "
 
     def open(self) -> "PythonIsoTpV2Connection":
         self.isotp_layer.start()
         self.opened = True
-        self.logger.info('Connection opened')
+        self.logger.info("Connection opened")
         return self
 
     def __enter__(self) -> "PythonIsoTpV2Connection":
@@ -571,7 +621,7 @@ class PythonIsoTpV2Connection(BaseConnection):
         self.empty_rxqueue()
         self.empty_txqueue()
         self.opened = False
-        self.logger.info('Connection closed')
+        self.logger.info("Connection closed")
 
     def specific_send(self, payload: bytes, timeout: Optional[float] = None) -> None:
         self.isotp_layer.send(payload, send_timeout=timeout)
@@ -582,7 +632,10 @@ class PythonIsoTpV2Connection(BaseConnection):
 
         frame = self.isotp_layer.recv(block=True, timeout=timeout)
         if frame is None:
-            raise TimeoutException("Did not receive IsoTP frame from the Transport layer in time (timeout=%s sec)" % timeout)
+            raise TimeoutException(
+                "Did not receive IsoTP frame from the Transport layer in time (timeout=%s sec)"
+                % timeout
+            )
 
         return bytes(frame)
 
@@ -603,7 +656,9 @@ class PythonIsoTpV1Connection(BaseConnection):
     opened: bool
     isotp_layer: "isotp.TransportLayerLogic"
 
-    def __init__(self, isotp_layer: "isotp.TransportLayerLogic", name: Optional[str] = None):
+    def __init__(
+        self, isotp_layer: "isotp.TransportLayerLogic", name: Optional[str] = None
+    ):
         BaseConnection.__init__(self, name)
         self.toIsoTPQueue = queue.Queue()
         self.fromIsoTPQueue = queue.Queue()
@@ -613,17 +668,21 @@ class PythonIsoTpV1Connection(BaseConnection):
         self.isotp_layer = isotp_layer
 
         # isotp v1 TransportLayer == isotpv2.TransportLayerLogic
-        if hasattr(isotp, 'TransportLayerLogic'):
-            assert isinstance(self.isotp_layer, isotp.TransportLayerLogic), 'isotp_layer must be a valid isotp.TransportLayerLogic'
+        if hasattr(isotp, "TransportLayerLogic"):
+            assert isinstance(
+                self.isotp_layer, isotp.TransportLayerLogic
+            ), "isotp_layer must be a valid isotp.TransportLayerLogic"
         else:
-            assert isinstance(self.isotp_layer, isotp.TransportLayer), 'isotp_layer must be a valid isotp.isotp.TransportLayer'
+            assert isinstance(
+                self.isotp_layer, isotp.TransportLayer
+            ), "isotp_layer must be a valid isotp.isotp.TransportLayer"
 
     def open(self) -> "PythonIsoTpV1Connection":
         self.exit_requested = False
         self.rxthread = threading.Thread(target=self.rxthread_task, daemon=True)
         self.rxthread.start()
         self.opened = True
-        self.logger.info('Connection opened')
+        self.logger.info("Connection opened")
         return self
 
     def __enter__(self) -> "PythonIsoTpV1Connection":
@@ -643,10 +702,12 @@ class PythonIsoTpV1Connection(BaseConnection):
             self.rxthread.join()
         self.isotp_layer.reset()
         self.opened = False
-        self.logger.info('Connection closed')
+        self.logger.info("Connection closed")
 
     def specific_send(self, payload: bytes, timeout: Optional[float] = None):
-        self.toIsoTPQueue.put(bytearray(payload))  # isotp.protocol.TransportLayer uses byte array. udsoncan is strict on bytes format
+        self.toIsoTPQueue.put(
+            bytearray(payload)
+        )  # isotp.protocol.TransportLayer uses byte array. udsoncan is strict on bytes format
 
     def specific_wait_frame(self, timeout: Optional[float] = None) -> Optional[bytes]:
         if not self.opened:
@@ -660,7 +721,10 @@ class PythonIsoTpV1Connection(BaseConnection):
             timedout = True
 
         if timedout:
-            raise TimeoutException("Did not receive IsoTP frame from the Transport layer in time (timeout=%s sec)" % timeout)
+            raise TimeoutException(
+                "Did not receive IsoTP frame from the Transport layer in time (timeout=%s sec)"
+                % timeout
+            )
 
         if frame is None:
             return None
@@ -696,13 +760,13 @@ class PythonIsoTpV1Connection(BaseConnection):
 
 class J2534Connection(BaseConnection):
     """
-    Sends and receives data through a J2534 Interface. 
+    Sends and receives data through a J2534 Interface.
     A windows DLL and a J2534 interface must be installed in order to use this connection
 
     :param windll: The path to the windows DLL for the J2534 interface (example: 'C:/Program Files{x86}../../openport 2.0/op20pt32.dll')
     :type interface: string
     :param rxid: The reception CAN id
-    :type rxid: int 
+    :type rxid: int
     :param txid: The transmission CAN id
     :type txid: int
     :param name: This name is included in the logger name so that its output can be redirected. The logger name will be ``Connection[<name>]``
@@ -727,12 +791,24 @@ class J2534Connection(BaseConnection):
     exit_requested: bool
     opened: bool
 
-    def __init__(self, windll: str, rxid: int, txid: int, name: Optional[str] = None, debug: bool = False, *args, **kwargs):
-
+    def __init__(
+        self,
+        windll: str,
+        rxid: int,
+        txid: int,
+        name: Optional[str] = None,
+        debug: bool = False,
+        *args,
+        **kwargs,
+    ):
         BaseConnection.__init__(self, name)
 
         # Determine mode ID29 or ID11
-        txFlags = TxStatusFlag.ISO15765_CAN_ID_29.value if txid >> 11 else TxStatusFlag.ISO15765_CAN_ID_11.value
+        txFlags = (
+            TxStatusFlag.ISO15765_CAN_ID_29.value
+            if txid >> 11
+            else TxStatusFlag.ISO15765_CAN_ID_11.value
+        )
 
         # Set up a J2534 interface using the DLL provided
         self.interface = J2534(windll=windll, rxid=rxid, txid=txid, txFlags=txFlags)
@@ -746,41 +822,66 @@ class J2534Connection(BaseConnection):
         result, self.devID = self.interface.PassThruOpen()
 
         if debug:
-            self.result = self.interface.PassThruIoctl(0,
-                                                       Ioctl_Flags.TX_IOCTL_SET_DLL_DEBUG_FLAGS,
-                                                       SCONFIG_LIST([(0, Ioctl_Flags.TX_IOCTL_DLL_DEBUG_FLAG_J2534_CALLS.value)])
-                                                       )
+            self.result = self.interface.PassThruIoctl(
+                0,
+                Ioctl_Flags.TX_IOCTL_SET_DLL_DEBUG_FLAGS,
+                SCONFIG_LIST(
+                    [(0, Ioctl_Flags.TX_IOCTL_DLL_DEBUG_FLAG_J2534_CALLS.value)]
+                ),
+            )
             self.log_last_operation("PassThruIoctl SET_DLL_DEBUG")
 
         # Get the firmeware and DLL version etc, mainly for debugging output
-        self.result, self.firmwareVersion, self.dllVersion, self.apiVersion = self.interface.PassThruReadVersion(self.devID)
-        self.logger.info("J2534 FirmwareVersion: " + str(self.firmwareVersion.value) + ", dllVersoin: " +
-                         str(self.dllVersion.value) + ", apiVersion" + str(self.apiVersion.value))
+        self.result, self.firmwareVersion, self.dllVersion, self.apiVersion = (
+            self.interface.PassThruReadVersion(self.devID)
+        )
+        self.logger.info(
+            "J2534 FirmwareVersion: "
+            + str(self.firmwareVersion.value)
+            + ", dllVersoin: "
+            + str(self.dllVersion.value)
+            + ", apiVersion"
+            + str(self.apiVersion.value)
+        )
 
         # get the channel ID of the interface (used for subsequent communication)
-        self.result, self.channelID = self.interface.PassThruConnect(self.devID, self.protocol.value, self.baudrate)
+        self.result, self.channelID = self.interface.PassThruConnect(
+            self.devID, self.protocol.value, self.baudrate
+        )
         self.log_last_operation("PassThruConnect")
 
-        configs = SCONFIG_LIST([
-            (Ioctl_ID.DATA_RATE.value, 500000),
-            (Ioctl_ID.LOOPBACK.value, 0),
-            (Ioctl_ID.ISO15765_BS.value, 0x20),
-            (Ioctl_ID.ISO15765_STMIN.value, 0),
-        ])
-        self.result = self.interface.PassThruIoctl(self.channelID, Ioctl_ID.SET_CONFIG, configs)
+        configs = SCONFIG_LIST(
+            [
+                (Ioctl_ID.DATA_RATE.value, 500000),
+                (Ioctl_ID.LOOPBACK.value, 0),
+                (Ioctl_ID.ISO15765_BS.value, 0x20),
+                (Ioctl_ID.ISO15765_STMIN.value, 0),
+            ]
+        )
+        self.result = self.interface.PassThruIoctl(
+            self.channelID, Ioctl_ID.SET_CONFIG, configs
+        )
         self.log_last_operation("PassThruIoctl SET_CONFIG")
 
-        self.result = self.interface.PassThruIoctl(self.channelID, Ioctl_ID.CLEAR_MSG_FILTERS)
+        self.result = self.interface.PassThruIoctl(
+            self.channelID, Ioctl_ID.CLEAR_MSG_FILTERS
+        )
         self.log_last_operation("PassThruIoctl CLEAR_MSG_FILTERS")
 
         # Set the filters and clear the read buffer (filters will be set based on tx/rxids)
-        self.result = self.interface.PassThruStartMsgFilter(self.channelID, self.protocol.value)
+        self.result = self.interface.PassThruStartMsgFilter(
+            self.channelID, self.protocol.value
+        )
         self.log_last_operation("PassThruStartMsgFilter")
 
-        self.result = self.interface.PassThruIoctl(self.channelID, Ioctl_ID.CLEAR_RX_BUFFER)
+        self.result = self.interface.PassThruIoctl(
+            self.channelID, Ioctl_ID.CLEAR_RX_BUFFER
+        )
         self.log_last_operation("PassThruIoctl CLEAR_RX_BUFFER")
 
-        self.result = self.interface.PassThruIoctl(self.channelID, Ioctl_ID.CLEAR_TX_BUFFER)
+        self.result = self.interface.PassThruIoctl(
+            self.channelID, Ioctl_ID.CLEAR_TX_BUFFER
+        )
         self.log_last_operation("PassThruIoctl CLEAR_TX_BUFFER")
 
         self.rxqueue = queue.Queue()
@@ -792,7 +893,7 @@ class J2534Connection(BaseConnection):
         self.rxthread = threading.Thread(target=self.rxthread_task, daemon=True)
         self.rxthread.start()
         self.opened = True
-        self.logger.info('J2534 Connection opened')
+        self.logger.info("J2534 Connection opened")
         return self
 
     def __enter__(self) -> "J2534Connection":
@@ -805,10 +906,11 @@ class J2534Connection(BaseConnection):
         return self.opened
 
     def rxthread_task(self) -> None:
-
         while not self.exit_requested:
             try:
-                result, data, numMessages = self.interface.PassThruReadMsgs(self.channelID, self.protocol.value, 1, 1)
+                result, data, numMessages = self.interface.PassThruReadMsgs(
+                    self.channelID, self.protocol.value, 1, 1
+                )
                 if data is not None:
                     self.rxqueue.put(data)
             except Exception:
@@ -833,7 +935,9 @@ class J2534Connection(BaseConnection):
     def specific_send(self, payload: bytes, timeout: Optional[float] = None):
         if timeout is None:
             timeout = 0
-        result = self.interface.PassThruWriteMsgs(self.channelID, payload, self.protocol.value, Timeout=int(timeout * 1000))
+        result = self.interface.PassThruWriteMsgs(
+            self.channelID, payload, self.protocol.value, Timeout=int(timeout * 1000)
+        )
 
     def specific_wait_frame(self, timeout: Optional[float] = None) -> Optional[bytes]:
         if not self.opened:
@@ -847,7 +951,10 @@ class J2534Connection(BaseConnection):
             timedout = True
 
         if timedout:
-            raise TimeoutException("Did not received response from J2534 RxQueue (timeout=%s sec)" % timeout)
+            raise TimeoutException(
+                "Did not received response from J2534 RxQueue (timeout=%s sec)"
+                % timeout
+            )
 
         return frame
 
@@ -858,7 +965,7 @@ class J2534Connection(BaseConnection):
 
 class FakeConnection(BaseConnection):
     """
-    Sends and receives static data defined in a local dict. 
+    Sends and receives static data defined in a local dict.
     Used so that an application can be tested without a live can network
     """
 
@@ -868,7 +975,6 @@ class FakeConnection(BaseConnection):
     ResponseData: Dict[bytes, bytes]
 
     def __init__(self, name=None, debug=False, *args, **kwargs):
-
         BaseConnection.__init__(self, name)
 
         self.rxqueue = queue.Queue()
@@ -876,12 +982,14 @@ class FakeConnection(BaseConnection):
         self.exit_requested = False
         self.opened = False
 
-        self.ResponseData = {b'\x10\x03': b'\x50\x03\x12\x23\x34\x45',
-                             b'\x22\xf1\x90\xf1\x89\xf1\x91\xf8\x06\xf1\xa3': b'\x22\xf1\x90\xf1\x89\xf1\x91\xf8\x06\xf1\xa3'}
+        self.ResponseData = {
+            b"\x10\x03": b"\x50\x03\x12\x23\x34\x45",
+            b"\x22\xf1\x90\xf1\x89\xf1\x91\xf8\x06\xf1\xa3": b"\x22\xf1\x90\xf1\x89\xf1\x91\xf8\x06\xf1\xa3",
+        }
 
     def open(self) -> "FakeConnection":
         self.opened = True
-        self.logger.info('Fake Connection opened')
+        self.logger.info("Fake Connection opened")
         return self
 
     def __enter__(self) -> "FakeConnection":
@@ -896,7 +1004,7 @@ class FakeConnection(BaseConnection):
     def close(self) -> None:
         self.exit_requested = True
         self.opened = False
-        self.logger.info('Fake Connection closed')
+        self.logger.info("Fake Connection closed")
 
     def specific_send(self, payload: bytes, timeout: Optional[float] = None):
         self.rxqueue.put(self.ResponseData[payload])
@@ -913,7 +1021,10 @@ class FakeConnection(BaseConnection):
             timedout = True
 
         if timedout:
-            raise TimeoutException("Did not received response from J2534 RxQueue (timeout=%s sec)" % timeout)
+            raise TimeoutException(
+                "Did not received response from J2534 RxQueue (timeout=%s sec)"
+                % timeout
+            )
 
         return frame
 
@@ -952,7 +1063,9 @@ class SyncAioIsotpConnection(BaseConnection):
     tx_id: int
     conn: Optional["SyncConnection"]
 
-    def __init__(self, rx_id: int, tx_id: int, name: Optional[str] = None, *args, **kwargs):
+    def __init__(
+        self, rx_id: int, tx_id: int, name: Optional[str] = None, *args, **kwargs
+    ):
         BaseConnection.__init__(self, name)
         self.network = SyncISOTPNetwork(*args, **kwargs)
         self.opened = False
@@ -973,7 +1086,9 @@ class SyncAioIsotpConnection(BaseConnection):
         frame = cast(Optional[bytes], self.conn.recv(timeout))
 
         if frame is None and timeout:
-            raise TimeoutException("Did not received frame in time (timeout=%s sec)" % timeout)
+            raise TimeoutException(
+                "Did not received frame in time (timeout=%s sec)" % timeout
+            )
 
         return frame
 

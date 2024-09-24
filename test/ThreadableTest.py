@@ -26,10 +26,12 @@ class ThreadableTest(UdsTest):
 
         # Do some munging to start the client test.
         methodname = self.id()
-        i = methodname.rfind('.')
-        methodname = methodname[i + 1:]
-        test_method = getattr(self, '_' + methodname)
-        self.client_thread = threading.Thread(target=self.clientRun, args=(test_method,))
+        i = methodname.rfind(".")
+        methodname = methodname[i + 1 :]
+        test_method = getattr(self, "_" + methodname)
+        self.client_thread = threading.Thread(
+            target=self.clientRun, args=(test_method,)
+        )
         self.client_thread.start()
 
         try:
@@ -64,7 +66,7 @@ class ThreadableTest(UdsTest):
         if self.server_crashed:
             self._clientTearDown()
             return
-        if not hasattr(test_func, '__call__'):
+        if not hasattr(test_func, "__call__"):
             raise TypeError("test_func must be a callable function")
         try:
             test_func()
@@ -79,7 +81,7 @@ class ThreadableTest(UdsTest):
     def _clientTearDown(self):
         self.done.set()
         try:
-            if hasattr(self, 'clientTearDown'):
+            if hasattr(self, "clientTearDown"):
                 self.clientTearDown()
         except BaseException as e:
             self.queue.put(e)

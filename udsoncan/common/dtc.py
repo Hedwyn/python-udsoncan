@@ -1,5 +1,4 @@
-__all__ = ['Dtc']
-
+from __future__ import annotations
 import struct
 import inspect
 
@@ -14,10 +13,12 @@ class Dtc:
     :type dtcid: int
 
     """
+
     class Format:
         """
-        Provide a list of DTC formats and their indices. These values are used by the :ref:`The ReadDTCInformation<ReadDtcInformation>` when requesting a number of DTCs.		
+        Provide a list of DTC formats and their indices. These values are used by the :ref:`The ReadDTCInformation<ReadDtcInformation>` when requesting a number of DTCs.
         """
+
         ISO15031_6 = 0
         ISO14229_1 = 1
         SAE_J1939_73 = 2
@@ -39,7 +40,7 @@ class Dtc:
     # This byte is an 8-bit flag indicating how much we are sure that a DTC is active.
     class Status:
         """
-        Represents a DTC status which consists of 8 boolean flags (a byte). All flags can be set after instantiation without problems. 
+        Represents a DTC status which consists of 8 boolean flags (a byte). All flags can be set after instantiation without problems.
 
         :param test_failed: DTC is no longer failed at the time of the request
         :type test_failed: bool
@@ -75,22 +76,28 @@ class Dtc:
         test_not_completed_this_operation_cycle: bool
         warning_indicator_requested: bool
 
-        def __init__(self,
-                     test_failed: bool = False,
-                     test_failed_this_operation_cycle: bool = False,
-                     pending: bool = False,
-                     confirmed: bool = False,
-                     test_not_completed_since_last_clear: bool = False,
-                     test_failed_since_last_clear: bool = False,
-                     test_not_completed_this_operation_cycle: bool = False,
-                     warning_indicator_requested: bool = False):
+        def __init__(
+            self,
+            test_failed: bool = False,
+            test_failed_this_operation_cycle: bool = False,
+            pending: bool = False,
+            confirmed: bool = False,
+            test_not_completed_since_last_clear: bool = False,
+            test_failed_since_last_clear: bool = False,
+            test_not_completed_this_operation_cycle: bool = False,
+            warning_indicator_requested: bool = False,
+        ):
             self.test_failed = test_failed
             self.test_failed_this_operation_cycle = test_failed_this_operation_cycle
             self.pending = pending
             self.confirmed = confirmed
-            self.test_not_completed_since_last_clear = test_not_completed_since_last_clear
+            self.test_not_completed_since_last_clear = (
+                test_not_completed_since_last_clear
+            )
             self.test_failed_since_last_clear = test_failed_since_last_clear
-            self.test_not_completed_this_operation_cycle = test_not_completed_this_operation_cycle
+            self.test_not_completed_this_operation_cycle = (
+                test_not_completed_this_operation_cycle
+            )
             self.warning_indicator_requested = warning_indicator_requested
 
         def get_byte_as_int(self) -> int:  # Returns the status byte as an integer
@@ -106,12 +113,16 @@ class Dtc:
 
             return byte
 
-        def get_byte(self) -> bytes:  # Returns the status byte in "bytes" format for payload creation
-            return struct.pack('B', self.get_byte_as_int())
+        def get_byte(
+            self,
+        ) -> bytes:  # Returns the status byte in "bytes" format for payload creation
+            return struct.pack("B", self.get_byte_as_int())
 
-        def set_byte(self, byte: Union[bytes, int]) -> None:  # Set all the status flags from the status byte
+        def set_byte(
+            self, byte: Union[bytes, int]
+        ) -> None:  # Set all the status flags from the status byte
             if not isinstance(byte, int) and not isinstance(byte, bytes):
-                raise ValueError('Given byte must be an integer or bytes object.')
+                raise ValueError("Given byte must be an integer or bytes object.")
 
             if isinstance(byte, bytes):
                 if len(byte) != 1:
@@ -122,9 +133,13 @@ class Dtc:
             self.test_failed_this_operation_cycle = True if byte & 0x02 > 0 else False
             self.pending = True if byte & 0x04 > 0 else False
             self.confirmed = True if byte & 0x08 > 0 else False
-            self.test_not_completed_since_last_clear = True if byte & 0x10 > 0 else False
+            self.test_not_completed_since_last_clear = (
+                True if byte & 0x10 > 0 else False
+            )
             self.test_failed_since_last_clear = True if byte & 0x20 > 0 else False
-            self.test_not_completed_this_operation_cycle = True if byte & 0x40 > 0 else False
+            self.test_not_completed_this_operation_cycle = (
+                True if byte & 0x40 > 0 else False
+            )
             self.warning_indicator_requested = True if byte & 0x80 > 0 else False
 
         @classmethod
@@ -136,7 +151,7 @@ class Dtc:
     # DTC Severity byte, it's a 3-bit indicator telling how serious a trouble code is.
     class Severity:
         """
-        Represents a DTC severity which consists of 3 boolean flags. All flags can be set after instantiation without problems. 
+        Represents a DTC severity which consists of 3 boolean flags. All flags can be set after instantiation without problems.
 
         :param maintenance_only: This value indicates that the failure requests maintenance only
         :type maintenance_only: bool
@@ -152,7 +167,12 @@ class Dtc:
         check_at_next_exit: bool
         check_immediately: bool
 
-        def __init__(self, maintenance_only: bool = False, check_at_next_exit: bool = False, check_immediately: bool = False):
+        def __init__(
+            self,
+            maintenance_only: bool = False,
+            check_at_next_exit: bool = False,
+            check_immediately: bool = False,
+        ):
             self.maintenance_only = maintenance_only
             self.check_at_next_exit = check_at_next_exit
             self.check_immediately = check_immediately
@@ -166,11 +186,11 @@ class Dtc:
             return byte
 
         def get_byte(self) -> bytes:
-            return struct.pack('B', self.get_byte_as_int())
+            return struct.pack("B", self.get_byte_as_int())
 
         def set_byte(self, byte: Union[bytes, int]) -> None:
             if not isinstance(byte, int) and not isinstance(byte, bytes):
-                raise ValueError('Given byte must be an integer or bytes object.')
+                raise ValueError("Given byte must be an integer or bytes object.")
 
             if isinstance(byte, bytes):
                 if len(byte) != 1:
@@ -186,18 +206,19 @@ class Dtc:
             return True if self.get_byte_as_int() > 0 else False
 
         # A snapshot data. Not defined by ISO14229 and implementation specific.
+
     # To read this data, the client must have a DID codec set in its config.
     class Snapshot:
         record_number: Optional[int] = None
         did: Optional[int] = None
         data: Optional[bytes] = None
-        raw_data: Optional[bytes] = b''
+        raw_data: Optional[bytes] = b""
 
     # Extended data. Not defined by ISO14229 and implementation specific
     # Only raw data can be given to user.
     class ExtendedData:
         record_number: Optional[int] = None
-        raw_data: Optional[bytes] = b''
+        raw_data: Optional[bytes] = b""
 
     id: int
     status: "Dtc.Status"
@@ -210,20 +231,25 @@ class Dtc:
     def __init__(self, dtcid: int):
         self.id = dtcid
         self.status = Dtc.Status()
-        self.snapshots = []  		# . DID codec must be configured
+        self.snapshots = []  # . DID codec must be configured
         self.extended_data = []
         self.severity = Dtc.Severity()
-        self.functional_unit = None 	# Implementation specific (ISO 14229 D.4)
+        self.functional_unit = None  # Implementation specific (ISO 14229 D.4)
         # Common practice is to detect a specific failure many times before setting the DTC active. This counter should tell the actual count.
         self.fault_counter = None
 
     def __repr__(self) -> str:
-        return '<DTC ID=0x%06x, Status=0x%02x, Severity=0x%02x at 0x%08x>' % (self.id, self.status.get_byte_as_int(), self.severity.get_byte_as_int(), id(self))
+        return "<DTC ID=0x%06x, Status=0x%02x, Severity=0x%02x at 0x%08x>" % (
+            self.id,
+            self.status.get_byte_as_int(),
+            self.severity.get_byte_as_int(),
+            id(self),
+        )
 
     def id_iso(self) -> str:
-        return '%c%i%03X-%02X' % (
-            ['P', 'C', 'B', 'U'][self.id >> 22],
+        return "%c%i%03X-%02X" % (
+            ["P", "C", "B", "U"][self.id >> 22],
             (self.id >> 20) & 3,
             (self.id >> 8) & 0xFFF,
-            (self.id) & 0xFF
+            (self.id) & 0xFF,
         )

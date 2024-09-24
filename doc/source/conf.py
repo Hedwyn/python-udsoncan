@@ -20,7 +20,7 @@ from os.path import abspath, join, dirname, normpath
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
-sys.path.insert(0, normpath(abspath(join(dirname(__file__), '..', '..'))))
+sys.path.insert(0, normpath(abspath(join(dirname(__file__), "..", ".."))))
 import udsoncan
 
 # -- General configuration ------------------------------------------------
@@ -32,37 +32,37 @@ import udsoncan
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.viewcode',
-    "sphinxcontrib.jquery"
+    "sphinx.ext.autodoc",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.viewcode",
+    "sphinxcontrib.jquery",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 # source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ".rst"
 
 # The encoding of source files.
 # source_encoding = 'utf-8-sig'
 
 # The master toctree document.
-master_doc = 'index'
+master_doc = "index"
 
 # General information about the project.
-project = u'udsoncan'
-copyright = u'2018, Pier-Yves Lessard'
-author = u'Pier-Yves Lessard'
+project = "udsoncan"
+copyright = "2018, Pier-Yves Lessard"
+author = "Pier-Yves Lessard"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
 # The short X.Y version.
-version = '.'.join(udsoncan.__version__.split('.')[0:2])
+version = ".".join(udsoncan.__version__.split(".")[0:2])
 # The full version, including alpha/beta/rc tags.
 release = udsoncan.__version__
 
@@ -71,7 +71,7 @@ release = udsoncan.__version__
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = 'en'
+language = "en"
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
@@ -99,7 +99,7 @@ exclude_patterns = []
 # show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'default'
+pygments_style = "default"
 
 # A list of ignored prefixes for module index sorting.
 # modindex_common_prefix = []
@@ -110,13 +110,13 @@ pygments_style = 'default'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
 
-primary_domain = 'py'
+primary_domain = "py"
 
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 
 toc_object_entries = False
 
@@ -124,9 +124,9 @@ toc_object_entries = False
 # further.  For a list of options available for each theme, see the
 # documentation.
 html_theme_options = {
-    'sticky_navigation': True,
-    'collapse_navigation': True,
-    'navigation_depth': 3,
+    "sticky_navigation": True,
+    "collapse_navigation": True,
+    "navigation_depth": 3,
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
@@ -151,13 +151,13 @@ html_theme_options = {
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
 html_context = {
-    'display_github': True,
-    'github_user': 'pylessard',
-    'github_repo': 'python-udsoncan',
-    'github_version': 'master/doc'
+    "display_github": True,
+    "github_user": "pylessard",
+    "github_repo": "python-udsoncan",
+    "github_version": "master/doc",
 }
 
 # Add any extra paths that contain custom files (such as robots.txt or
@@ -221,22 +221,19 @@ html_context = {
 # html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'udsoncandoc'
+htmlhelp_basename = "udsoncandoc"
 
-autodoc_typehints = 'description'
+autodoc_typehints = "description"
 
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
     # 'papersize': 'letterpaper',
-
     # The font size ('10pt', '11pt' or '12pt').
     # 'pointsize': '10pt',
-
     # Additional stuff for the LaTeX preamble.
     # 'preamble': '',
-
     # Latex figure (float) alignment
     # 'figure_align': 'htbp',
 }
@@ -245,8 +242,13 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'udsoncan.tex', u'udsoncan Documentation',
-     u'Pier-Yves Lessard', 'manual'),
+    (
+        master_doc,
+        "udsoncan.tex",
+        "udsoncan Documentation",
+        "Pier-Yves Lessard",
+        "manual",
+    ),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -274,10 +276,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    (master_doc, 'udsoncan', u'udsoncan Documentation',
-     [author], 1)
-]
+man_pages = [(master_doc, "udsoncan", "udsoncan Documentation", [author], 1)]
 
 # If true, show URL addresses after external links.
 # man_show_urls = False
@@ -289,9 +288,15 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'udsoncan', u'udsoncan Documentation',
-     author, 'udsoncan', 'Python implementation of UDS standard (ISO-14229).',
-     'Miscellaneous'),
+    (
+        master_doc,
+        "udsoncan",
+        "udsoncan Documentation",
+        author,
+        "udsoncan",
+        "Python implementation of UDS standard (ISO-14229).",
+        "Miscellaneous",
+    ),
 ]
 
 # Documents to append as an appendix to all manuals.
@@ -308,4 +313,4 @@ texinfo_documents = [
 
 
 def setup(app):
-    app.add_css_file('theme_overrides.css')
+    app.add_css_file("theme_overrides.css")

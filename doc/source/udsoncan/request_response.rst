@@ -22,10 +22,10 @@ Request
    req2 = Request.from_payload(payload)
    print(req2) # <Request: [ECUReset] (subfunction=1) - 2 data bytes at 0x12345678>
 
-.. autoclass:: udsoncan.Request
+.. autoclass:: udsoncan.request
     :exclude-members: from_payload, get_payload
-.. automethod:: udsoncan.Request.get_payload
-.. automethod:: udsoncan.Request.from_payload
+.. automethod:: udsoncan.request.get_payload
+.. automethod:: udsoncan.request.from_payload
 
 .. _Response:
 
@@ -43,11 +43,11 @@ Response
    print(response2) # <PositiveResponse: [ECUReset] - 2 data bytes at 0x7f9367e619b0>
 
 
-.. autoclass:: udsoncan.Response
+.. autoclass:: udsoncan.response
     :members:
     :exclude-members: from_payload, get_payload
-.. automethod:: udsoncan.Response.get_payload
-.. automethod:: udsoncan.Response.from_payload
+.. automethod:: udsoncan.response.get_payload
+.. automethod:: udsoncan.response.from_payload
 
 Response Codes
 ##############
