@@ -10,7 +10,7 @@ from udsoncan.common import Baudrate
 from udsoncan.common import IOValues, IOMasks
 from udsoncan.common import Filesize
 from udsoncan.connections import BaseConnection
-from udsoncan.base_service import BaseService
+from udsoncan.base_service import BaseService, ServiceData
 
 from udsoncan.exceptions import *
 from udsoncan.configs import default_client_config
@@ -217,9 +217,7 @@ class Client:
         return "%s<0x%02x>" % (service.get_name(), service.request_id())
 
     @standard_error_management
-    def change_session(
-        self, newsession: int
-    ) -> Optional[services.DiagnosticSessionControl.InterpretedResponse]:
+    def change_session(self, newsession: int) -> Optional[ServiceData]:
         """
         Requests the server to change the diagnostic session with a :ref:`DiagnosticSessionControl<DiagnosticSessionControl>` service request
 
@@ -245,39 +243,35 @@ class Client:
             )
         )
 
-        response = self.send_request(req)
-        if response is None:
+        raw_response = self.send_request(req)
+        if raw_response is None:
             return None
 
         response = services.DiagnosticSessionControl.interpret_response(
-            response, standard_version=self.config["standard_version"]
+            raw_response, standard_version=self.config["standard_version"]
         )
 
-        if newsession != response.service_data.session_echo:
+        if newsession != response.subfunction:
             raise UnexpectedResponseException(
-                response,
-                "Response subfunction received from server (0x%02x) does not match the requested subfunction (0x%02x)"
-                % (response.service_data.session_echo, newsession),
+                raw_response,
+                f"Response subfunction received from server {response.subfunction:02x} "
+                f"does not match the requested subfunction {newsession:02x}",
             )
 
         if self.config["standard_version"] > 2006:
-            assert response.service_data.p2_server_max is not None
-            assert response.service_data.p2_star_server_max is not None
+            assert response.p2_server_max is not None
+            assert response.p2_star_server_max is not None
             if self.config["use_server_timing"]:
                 self.logger.info(
                     "%s - Received new timing parameters. P2=%.3fs and P2*=%.3fs.  Using these value from now on."
                     % (
                         self.service_log_prefix(services.DiagnosticSessionControl),
-                        response.service_data.p2_server_max,
-                        response.service_data.p2_star_server_max,
+                        response.p2_server_max,
+                        response.p2_star_server_max,
                     )
                 )
-                self.session_timing["p2_server_max"] = (
-                    response.service_data.p2_server_max
-                )
-                self.session_timing["p2_star_server_max"] = (
-                    response.service_data.p2_star_server_max
-                )
+                self.session_timing["p2_server_max"] = response.p2_server_max
+                self.session_timing["p2_star_server_max"] = response.p2_star_server_max
 
         return response
 

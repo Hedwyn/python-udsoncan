@@ -210,7 +210,7 @@ def test_service_data_resolution_unpacking(
     float_value: int,
 ) -> None:
     """
-    Checks that resolution are properly applied when unpacking ServiceData objects
+    Checks that resolution are properly applied when packing ServiceData objects
     """
     base_data = AdvancedServiceData(
         subfunction=1, an_int=int_value, a_float=float_value

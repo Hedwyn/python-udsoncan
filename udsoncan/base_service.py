@@ -84,6 +84,7 @@ class UdsField(Field):
         )
         self.fmt = fmt
         self.resolution = resolution
+        self.scale_factor = 1.0 / self.resolution
         super().__init__(*args, **kwargs)
 
     def supports_subfonction(self, subfunction: int) -> bool:
