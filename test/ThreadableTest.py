@@ -85,5 +85,3 @@ class ThreadableTest(UdsTest):
                 self.clientTearDown()
         except BaseException as e:
             self.queue.put(e)
-        finally:
-            raise SystemExit()
