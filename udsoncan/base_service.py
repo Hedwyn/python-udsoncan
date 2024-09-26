@@ -1,9 +1,353 @@
+"""
+Base class and model for all UDS services
+"""
+
+from __future__ import annotations
+from typing import (
+    Iterable,
+    Optional,
+    Union,
+    Iterator,
+    TypeVar,
+    cast,
+    Any,
+    Self,
+    ClassVar,
+    Final,
+    TYPE_CHECKING,
+)
 import inspect
-
-from udsoncan.response_code import ResponseCode
+import struct
 from abc import ABC
+from dataclasses import dataclass, Field, field, fields
+from functools import cache
 
-from typing import Type, List, Optional
+from .standards import StandardVersion
+from .response_code import ResponseCode
+
+if TYPE_CHECKING:
+    from .response import Response
+
+# --- Constants --- #
+_ENDIANNESS: Final[str] = ">"
+NO_SUBFUNCTION: Final[int] = 0
+_FIELD_DEFAULTS: Final[dict[str, Any]] = {
+    k: v.default
+    for k, v in inspect.signature(field).parameters.items()
+    if v.default is not inspect.Parameter.empty
+}
+
+# --- Type aliasing --- #
+UdsPayloadTypes = Union[int, float, bytes, str]
+T = TypeVar("T", bound=UdsPayloadTypes)
+
+# ---Errors --- #
+# aliasing struct.error to get a more compelling error name
+TranscodeError = struct.error
+
+
+class UdsField(Field):
+    """
+    An extended dataclasses `Field` that carry extra metadata
+    required fopr UDS.
+    Parameters that are added on top of regular `Field` are detailed below.
+
+    Parameters
+    ----------
+    fmt: str
+        The format string defining how struct module should encode/decode the value.
+        Refer to struct module to learn about the format characters.
+        Note that the format for a given dataclass is built by iterating over the
+        UdsField format in declaration order.
+
+    subfunctions: int | Iterable[int]
+        A list of subfunctions that this field applies to.
+        This field vlaue will only be included if encoding a subfunction that is supported.
+        Passing no value (empty tuple, which is the default) will include this field for
+        ALL subfunctions.
+
+    resolution: int | float
+        Optional, for integer values allows to scaling the value to a float.
+        Should be use for UDS parameters that need to be rescaled with a predefined resolution.
+    """
+
+    def __init__(
+        self,
+        *args: Any,
+        fmt: str,
+        subfunctions: int | Iterable[int] = (),
+        resolution: int | float = 1,
+        **kwargs,
+    ) -> None:
+        self.subfunctions: set[int] = (
+            set((subfunctions,)) if isinstance(subfunctions, int) else set(subfunctions)
+        )
+        self.fmt = fmt
+        self.resolution = resolution
+        super().__init__(*args, **kwargs)
+
+    def supports_subfonction(self, subfunction: int) -> bool:
+        """
+        Returns
+        -------
+        bool
+            True if the field should be included for this subfunction
+            False otherwise
+        """
+        return not self.subfunctions or subfunction in self.subfunctions
+
+
+def uds_field(
+    default: T, fmt: str, subfunctions: int | Iterable[int] = (), **field_kwargs: Any
+) -> T:
+    """
+    Equivalent of dataclasses `field` for `UdsField`.
+    Builds an UdsField from the given data.
+
+    Example
+    -------
+    @dataclass
+    class AdvancedServiceData(ServiceData):
+        an_int: int = uds_field(42, "d")
+        a_float: float = uds_field(3.14, "f", subfunctions=1)
+
+    Notes
+    -----
+    This function deliberately uses a incorrect return type annotation.
+    This is required for the dataclasses declaration to be interpreted correctly
+    by the type checker.
+    Note that type checkers uses the exact same trick internally by stubbing
+    the return type of `field` to T instead of Field[T].
+    """
+    kwargs = _FIELD_DEFAULTS.copy()
+    kwargs.update(field_kwargs)
+    kwargs["default"] = default
+    # cast is required for uds fields to be handled properly by type checkers
+    return cast(T, UdsField(subfunctions=subfunctions, fmt=fmt, **kwargs))
+
+
+@dataclass
+class ServiceData:
+    """
+    Base class for Request/Response data
+
+    """
+
+    subfunction: int = field(default=NO_SUBFUNCTION)
+    # maps each subfunction to the binary format that should be used by struct
+    # to pack the data
+
+    @classmethod
+    def _iter_parameter_fields(
+        cls, subfunction: int = NO_SUBFUNCTION
+    ) -> Iterator[UdsField]:
+        """
+        Yields
+        ------
+        UdsField
+            All the fields that are relevant to the given subfunction
+        """
+        for f in fields(cls):
+            # print(type(f), f)
+            if isinstance(f, UdsField) and f.supports_subfonction(subfunction):
+                yield f
+
+    @classmethod
+    def _iter_parameter_names(cls, subfunction: int = NO_SUBFUNCTION) -> Iterator[str]:
+        """
+        Yields
+        ------
+        str
+            Name of the parameters that should be included for the passed subfunction
+        """
+        for f in cls._iter_parameter_fields(subfunction):
+            yield f.name
+
+    @classmethod
+    @cache
+    def get_payload_fmt(cls, subfunction: int = NO_SUBFUNCTION) -> str:
+        """
+        Returns
+        -------
+        str
+            The binary format string that should be used by `struct` module
+            to pack/unpack to and from binary data
+        """
+        return "".join(
+            (_ENDIANNESS, *(f.fmt for f in cls._iter_parameter_fields(subfunction)))
+        )
+
+    @classmethod
+    @cache
+    def get_parameter_names(cls, subfunction: int = NO_SUBFUNCTION) -> tuple[str, ...]:
+        return tuple(cls._iter_parameter_names(subfunction))
+
+    @classmethod
+    @cache
+    def get_parameter_resolutions(
+        cls, subfunction: int = NO_SUBFUNCTION
+    ) -> tuple[float, ...]:
+        """
+        Returns
+        -------
+        tuple[float, ...]
+            The resolutions to apply to parameters when decoding,
+            as a vector.
+        """
+        return tuple(f.resolution for f in cls._iter_parameter_fields(subfunction))
+
+    @classmethod
+    @cache
+    def get_parameter_scaling_factors(
+        cls, subfunction: int = NO_SUBFUNCTION
+    ) -> tuple[float, ...]:
+        """
+        Returns
+        -------
+        tuple[float, ...]
+            The scaling factors to apply to parameters when encoding,
+            basically the inverse of resolution
+        """
+        return tuple(1 / r for r in cls.get_parameter_resolutions(subfunction))
+
+    def get_parameter_values(
+        self, subfunction: int = NO_SUBFUNCTION, scale: bool = False
+    ) -> Iterator[UdsPayloadTypes]:
+        """
+        Yields
+        ------
+        str
+            Name of the parameters that should be included for the passed subfunction
+
+        scale: bool
+            If enabled, rescales the parameters that have defined a resolution.
+            You should typically enable this flag if when extracting this data to
+            encode it in binary.
+        """
+        base_map = map(self.__getattribute__, self._iter_parameter_names(subfunction))
+        if not scale:
+            return base_map
+        # otherwise applying resolutions
+        return (
+            val * factor
+            for val, factor in zip(
+                base_map, self.get_parameter_scaling_factors(subfunction)
+            )
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ServiceData):
+            return NotImplemented
+        return all(
+            (
+                kv_1 == kv_2
+                for kv_1, kv_2 in zip(
+                    self.get_parameter_items(), other.get_parameter_items()
+                )
+            )
+        )
+
+    def get_parameter_items(
+        self, subfunction: int = NO_SUBFUNCTION
+    ) -> Iterator[tuple[str, UdsPayloadTypes]]:
+        """
+        Yields
+        ------
+        str
+            Name of the parameters that should be included for the passed subfunction
+        """
+        return zip(
+            self.get_parameter_names(subfunction),
+            self.get_parameter_values(subfunction, scale=True),
+        )
+
+    @classmethod
+    def unpack(
+        cls, data: bytes | None = None, subfunction: int = NO_SUBFUNCTION
+    ) -> Self:
+        """
+        Parameters
+        ----------
+        data: bytes | None
+            Data from which to build this object
+
+        subfunction: int
+            ID of the subfunction that was used by this request.
+            Note that it is extracted independently from the payload,
+            thus has to be treated separately.
+        """
+        parameter_names = cls.get_parameter_names(subfunction)
+        if not parameter_names:
+            if data:
+                raise ValueError(
+                    f"Binary data got passed to {cls.__name__} despite expecting no parameter "
+                    f"expected by subfunction {subfunction}. "
+                    "Consider checking the subfunction ID"
+                )
+            return cls()
+
+        if not data:
+            raise ValueError(
+                f"{cls.__name__} expects parameters {parameter_names} yet no data was passed"
+            )
+
+        fmt = cls.get_payload_fmt(subfunction)
+        try:
+            args = struct.unpack(fmt, data)
+        except TranscodeError as exc:
+            raise ValueError(
+                f"Failed to encode data {data} with format {fmt}. "
+                "Either the data or the format might be incorrect"
+            ) from exc
+
+        resolutions = cls.get_parameter_resolutions(subfunction)
+        kwargs = {k: v * res for k, v, res in zip(parameter_names, args, resolutions)}
+        return cls(subfunction=subfunction, **kwargs)
+
+    def pack(self) -> bytes:
+        """
+        Converts this object to bytes
+        """
+        fmt = self.get_payload_fmt(self.subfunction)
+
+        if fmt is None:
+            return b""
+
+        subfunction_params = self.get_parameter_names(self.subfunction)
+        value_getter = map(self.__getattribute__, subfunction_params)
+        args = (
+            val * scale
+            for val, scale in zip(
+                value_getter, self.get_parameter_scaling_factors(self.subfunction)
+            )
+        )
+
+        try:
+            return struct.pack(fmt, *args)
+        except struct.error as exc:
+            raise ValueError(
+                "Failed to pack arguments, your class might be invalid. "
+                f"Args: {subfunction_params}; fmt: {fmt}"
+            ) from exc
+
+
+class BaseResponseData:
+    """
+    Legacy implementation
+    """
+
+    def __init__(self, service_class):
+        if not issubclass(service_class, BaseService):
+            raise ValueError("service_class must be a service class")
+
+        self.service_class = service_class
+
+    def __repr__(self):
+        return "<%s (%s) at 0x%08x>" % (
+            self.__class__.__name__,
+            self.service_class.__name__,
+            id(self),
+        )
 
 
 class BaseSubfunction:
@@ -27,6 +371,14 @@ class BaseSubfunction:
         return "Custom %s" % name
 
 
+class EmptyServiceData(ServiceData):
+    """
+    Default class to use for Request/Response that do no take any parameter
+    """
+
+    payload_fmt: ClassVar[str | None] = None
+
+
 class BaseService(ABC):
     always_valid_negative_response = [
         ResponseCode.GeneralReject,
@@ -46,7 +398,41 @@ class BaseService(ABC):
 
     _sid: int
     _use_subfunction: bool
-    supported_negative_response: List[int]
+    supported_negative_response: list[int]
+
+    @classmethod
+    def get_request_cls(
+        cls, standard_version: StandardVersion = StandardVersion.latest()
+    ) -> type[ServiceData]:
+        """
+        Main dispatcher for service classes.
+        Service classes should override appropriately.
+        Provides the appropriate dataclass to use for the request for the requested standard version.
+        If standard version is irrelevant it may be simply ignored.
+
+        Returns
+        -------
+        type[ServiceData]
+            The class to use for the request payload
+        """
+        return EmptyServiceData
+
+    @classmethod
+    def get_response_cls(
+        cls, standard_version: StandardVersion = StandardVersion.latest()
+    ) -> type[ServiceData]:
+        """
+        Main dispatcher for service classes.
+        Service classes should override appropriately.
+        Provides the appropriate dataclass to use for the response for the requested standard version.
+        If standard version is irrelevant it may be simply ignored.
+
+        Returns
+        -------
+        type[ServiceData]
+            The class to use for the response payload
+        """
+        return EmptyServiceData
 
     @classmethod  # Returns the service ID used for a client request
     def request_id(cls) -> int:
@@ -56,8 +442,32 @@ class BaseService(ABC):
     def response_id(cls) -> int:
         return cls._sid + 0x40
 
+    @classmethod
+    def _interpret_response(
+        cls,
+        response: Response,
+        standard_version: StandardVersion = StandardVersion.latest(),
+    ) -> ServiceData:
+        """
+        Base internal primitive to interpret a response.
+        """
+        response_cls = cls.get_response_cls(standard_version)
+        if response.data is None:
+            return response_cls()
+        if cls.use_subfunction():
+            # for services that support subfonctions,
+            subfunction = response.data[0]
+            data = response.data[1:]
+            print(data, type(data))
+
+        else:
+            subfunction = cls.default_subfonction_id()
+            data = response.data
+
+        return response_cls.unpack(data, subfunction=subfunction)
+
     @staticmethod
-    def __get_all_subclasses(cls) -> List[Type["BaseService"]]:
+    def __get_all_subclasses(cls) -> list[type[BaseService]]:
         import udsoncan.services  # This import is required for __subclasses__ to have a value. Python never import twice the same package.
 
         # this gets all subclasses and returns a list where the "most original" subclasses are listed in front of the other subclasses
@@ -73,7 +483,7 @@ class BaseService(ABC):
         return lst
 
     @classmethod  # Returns an instance of the service identified by the service ID (Request)
-    def from_request_id(cls, given_id: int) -> Optional[Type["BaseService"]]:
+    def from_request_id(cls, given_id: int) -> Optional[type[BaseService]]:
         classes = BaseService.__get_all_subclasses(cls)
         for obj in classes:
             if obj.request_id() == given_id:
@@ -81,15 +491,18 @@ class BaseService(ABC):
         return None
 
     @classmethod  # Returns an instance of the service identified by the service ID (Response)
-    def from_response_id(cls, given_id: int) -> Optional[Type["BaseService"]]:
+    def from_response_id(cls, given_id: int) -> Optional[type[BaseService]]:
         classes = BaseService.__get_all_subclasses(cls)
         for obj in classes:
             if obj.response_id() == int(given_id):
                 return obj
         return None
 
-    # Default subfunction ID for service that does not implement subfunction_id().
-    def subfunction_id(self) -> int:
+    @classmethod
+    def default_subfonction_id(cls) -> int:
+        """
+        The subfonction ID to default to when not passed explicitly.
+        """
         return 0
 
     @classmethod  # Tells if this service includes a subfunction byte
@@ -135,18 +548,3 @@ class BaseService(ABC):
             supported = True
 
         return supported
-
-
-class BaseResponseData:
-    def __init__(self, service_class):
-        if not issubclass(service_class, BaseService):
-            raise ValueError("service_class must be a service class")
-
-        self.service_class = service_class
-
-    def __repr__(self):
-        return "<%s (%s) at 0x%08x>" % (
-            self.__class__.__name__,
-            self.service_class.__name__,
-            id(self),
-        )
