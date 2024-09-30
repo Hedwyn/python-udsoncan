@@ -3,6 +3,7 @@ Base class and model for all UDS services
 """
 
 from __future__ import annotations
+from enum import IntEnum
 from typing import (
     Iterable,
     Optional,
@@ -147,9 +148,40 @@ class ServiceData:
 
     """
 
+    SupportedSubFunctions: ClassVar[type[IntEnum] | None] = None
     subfunction: int = field(default=NO_SUBFUNCTION)
+
     # maps each subfunction to the binary format that should be used by struct
     # to pack the data
+    def __post_init__(self) -> None:
+        """
+        Converts the subfunctions to its respective Enum if defined.
+        """
+        if self.SupportedSubFunctions is not None:
+            if not isinstance(self.subfunction, self.SupportedSubFunctions):
+                try:
+                    self.subfunction = self.SupportedSubFunctions(self.subfunction)
+                except ValueError:
+                    raise ValueError(
+                        f"Subfunction {self.subfunction} is not in {self.SupportedSubFunctions}"
+                    )
+
+    @classmethod
+    def export_subfunction_doc(cls) -> dict[str, dict[str, Any]]:
+        """
+        Returns
+        -------
+        dict
+            A dictionary representation of the object
+        """
+        if cls.SupportedSubFunctions is None:
+            raise ValueError("Subfunctions enum is not defined")
+
+        docs = {}
+        for subfn in cls.SupportedSubFunctions:
+            subfn_dict = {f.name: f.fmt for f in cls._iter_parameter_fields(subfn)}
+            docs[subfn.name] = subfn_dict
+        return docs
 
     @classmethod
     def _iter_parameter_fields(
@@ -352,7 +384,8 @@ class ServiceData:
                 raise ValueError(
                     f"Binary data got passed to {cls.__name__} despite expecting no parameter "
                     f"expected by subfunction {subfunction}. "
-                    "Consider checking the subfunction ID"
+                    "Consider checking the subfunction ID. \nData:"
+                    f"{data}"
                 )
             return cls()
 
@@ -572,11 +605,11 @@ class BaseService(ABC):
         response_cls = cls.get_response_cls(standard_version)
         if response.data is None:
             return response_cls()
+        print("Got data =", response.data)
         if cls.use_subfunction():
             # for services that support subfonctions,
             subfunction = response.data[0]
             data = response.data[1:]
-            print(data, type(data))
 
         else:
             subfunction = cls.default_subfonction_id()
