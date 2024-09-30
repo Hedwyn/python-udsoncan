@@ -51,7 +51,7 @@ def test_service_data_get_payload_fmt() -> None:
     Checks that the payload format is properly computed
     from the declared uds_field objects
     """
-    SimpleServiceData.get_payload_fmt() == ">df"
+    SimpleServiceData._iter_payload_fmt() == (">df",)
 
 
 def test_service_data_pack_no_raise() -> None:
@@ -123,6 +123,7 @@ def test_payload_fmt_with_subfunctions(
     verifies that the payload format is properly computed for each subfunction
     """
     assert data_cls.get_payload_fmt(subfunction) == expects
+    assert data_cls._iter_payload_fmt(subfunction) == (expects,)
 
 
 @pytest.mark.parametrize(
@@ -220,3 +221,44 @@ def test_service_data_resolution_unpacking(
     unpacked = ScaledServiceData.unpack(base_data.pack(), subfunction=1)
     assert unpacked.an_int == base_data.an_int
     assert unpacked.a_float == base_data.a_float / 10
+
+
+@dataclass
+class SimpleVariadicServiceData(ServiceData):
+    """
+    A service data class that has a single variadic field
+    """
+
+    an_int: int = uds_field(42, "d")
+    some_bytes: bytes = uds_field(b"", "h{}s")
+    a_float: float = uds_field(3.14, "f")
+
+
+def test_service_data_variadic_payload_fmt() -> None:
+    assert SimpleVariadicServiceData._iter_payload_fmt() == (">dh", ">{}sf")
+
+
+def test_service_data_variadic_sanity() -> None:
+    assert SimpleVariadicServiceData.has_variadic_fields() is True
+    assert SimpleVariadicServiceData.get_variadic_fields_indexes() == (1,)
+
+
+def test_service_data_variadic_length() -> None:
+    test_data = b"\x01\x02\x03\x04\x05\x06"
+    data = SimpleVariadicServiceData()
+    # length field requires 2 bytes
+    assert len(data.pack()) == len(SimpleServiceData().pack()) + 2
+    data.some_bytes = test_data
+    assert len(data.pack()) == len(SimpleServiceData().pack()) + 6 + 2
+    # binary data starts after 8 bytes as first element is an int64, length is two bytes
+    packed = data.pack()
+    assert packed[8:10] == b"\x00\x06"
+    assert packed[10:16] == test_data
+
+
+def test_service_data_pack_inverts_unpack_variadic() -> None:
+    test_data = b"\x01\x02\x03\x04\x05\x06"
+    data = SimpleVariadicServiceData(some_bytes=test_data)
+    unpacked = SimpleVariadicServiceData.unpack(data.pack())
+
+    assert data.some_bytes == unpacked.some_bytes
